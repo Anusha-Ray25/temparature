@@ -1,0 +1,79 @@
+module temp_spi21(
+    input clk1,
+    input adc_out,
+    input rst,
+    output sclk,
+    output reg cs,
+    output reg [6:0] led_out,
+    output reg clk,
+	 Output en,
+	 output reg buz_out
+);
+
+    reg [11:0] adc_out_store;
+    reg [3:0] count_out;
+    reg [3:0] count;
+    reg [31:0] count1;
+	 reg [23:0] counter;
+
+    // Clock divider: Generate slower clock 'clk' from fast 'clk1'
+    always @(posedge clk1 or posedge rst) begin
+        if (rst) begin
+            count1 <= 0;
+            clk <= 0;
+        end else begin
+            if (count1 == 25000000) begin  // Adjust for your target frequency
+                count1 <= 0;
+                clk <= ~clk;
+            end else begin
+                count1 <= count1 + 1;
+            end
+        end
+    end
+
+    // Initialization block
+    initial begin
+        count = 4'd0;
+        cs = 1;
+        count_out = 4'd0;
+    end
+
+    // Chip Select logic (CS goes low when count == 1)
+    always @(negedge clk1) begin
+        if (count == 1) begin
+            cs <= 0;
+        end
+    end
+
+    // SPI Clock output control
+    assign sclk = cs ? 1 : clk;
+
+    // Count increment for CS logic
+    always @(posedge clk1) begin
+        count <= count + 4'd1;
+    end
+
+    // ADC data shift-in and LED output
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            count_out <= 0;
+            led_out <= 7'b0000000;
+            adc_out_store <= 12'd0;
+        end else begin
+            if (count_out < 12) begin
+                adc_out_store[11 - count_out] <= adc_out;  // MSB first
+                count_out <= count_out + 1;
+            end
+            // Output lower 7 bits to LED
+            led_out <= adc_out_store[6:0];
+        end
+    end
+	 always@(posedge clk or posedge rst)begin
+	 if(led_out > 12'd32)begin
+			buz_out <= 1;
+			end
+	else begin
+		buz_out <= 0;
+		end
+    assign en =~buz_out;
+    endmodule
